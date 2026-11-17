@@ -1,0 +1,891 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Hookline: an editable UI kit for a beginner guitar app built around trending song hooks.">
+<title>Hookline UI Kit</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=Bricolage+Grotesque:wght@500;700;800&family=DM+Sans:wght@400;500;700&family=Fraunces:wght@600;800&family=Inter:wght@400;500;600;700&family=Rubik:wght@400;500;700;800&family=Space+Grotesk:wght@500;700&display=swap">
+<style>
+/* Layout: editor panel on the left, a wrapping wall of phone screens on the right. Editor chrome is neutral; the phones use the user's theme (--a-*). */
+:root {
+  --bg: #eceef1; --panel: #ffffff; --fg: #1a1d22; --muted: #5b6370; --line: #d6dae0; --accent: #2f5bd3; --accent-soft: #e3e9fb;
+  --f-head: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+  --f-body: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --zoom: 1;
+  --wood-base: #43180e; --on-wood: #f8ece1; --on-wood-muted: #e2c8b6;
+  /* app theme defaults (overwritten by JS) */
+  --a-bg: #141210; --a-surface: #221e1a; --a-text: #f2ebe1; --a-muted: #a59a8c; --a-accent: #ff7a1a; --a-good: #7bd88f; --a-on-accent: #14110f;
+  --a-display: 'Bricolage Grotesque', system-ui, sans-serif; --a-body: 'Inter', system-ui, sans-serif; --a-r: 16px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg: #111317; --panel: #1a1d22; --fg: #e7e9ec; --muted: #9aa2ae; --line: #2c3139; --accent: #7fa2ff; --accent-soft: #232c45; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --bg: #111317; --panel: #1a1d22; --fg: #e7e9ec; --muted: #9aa2ae; --line: #2c3139; --accent: #7fa2ff; --accent-soft: #232c45; color-scheme: dark; }
+
+* { box-sizing: border-box; }
+body { background: var(--wood-base); color: var(--fg); font-family: var(--f-body); font-size: 14px; line-height: 1.45; }
+
+/* Mahogany backdrop: grain is generated on a canvas at load (no image files allowed), lit with a soft lacquer sheen and vignette. */
+.woodbg { position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background: repeating-linear-gradient(180deg, #4a1a10 0 168px, #2a0d08 168px 170px), linear-gradient(90deg, #5a2214, #3d140c); }
+.woodbg canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; opacity: 0; transition: opacity .5s; }
+.woodbg canvas.ready { opacity: 1; }
+.woodbg::after { content: ""; position: absolute; inset: 0;
+  background:
+    radial-gradient(ellipse 70% 45% at 35% 0%, rgba(255, 196, 150, .14), transparent 70%),
+    linear-gradient(180deg, rgba(255, 220, 190, .05), transparent 30%, rgba(0, 0, 0, .12)),
+    radial-gradient(ellipse at 50% 45%, transparent 55%, rgba(12, 3, 1, .55)); }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.wrap { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 32px; max-width: 1640px; margin: 0 auto;
+  padding-block: 24px 48px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+@media (max-width: 880px) { .wrap { grid-template-columns: minmax(0, 1fr); gap: 24px; } }
+
+/* ---------- Editor panel ---------- */
+.panel { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 16px); align-self: start; max-height: calc(100vh - 32px); overflow-y: auto;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 20px; }
+@media (max-width: 880px) { .panel { position: static; max-height: none; } }
+.brand { display: flex; gap: 10px; align-items: center; }
+.brand-mark { width: 34px; height: 34px; border-radius: 9px; background: var(--a-accent); color: var(--a-on-accent); display: grid; place-items: center; flex: none; }
+.brand h1 { font-family: var(--f-head); font-size: 18px; margin: 0; line-height: 1.1; }
+.brand p { margin: 0; color: var(--muted); font-size: 12px; }
+.group { display: flex; flex-direction: column; gap: 10px; }
+.group-title { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0; }
+.edit-toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); cursor: pointer; text-align: left; width: 100%; }
+.edit-toggle b { display: block; font-size: 14px; }
+.edit-toggle small { color: var(--muted); font-size: 12px; }
+.edit-toggle[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.sw { width: 38px; height: 22px; border-radius: 11px; background: var(--line); position: relative; flex: none; transition: background .15s; }
+.sw::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--panel); transition: transform .15s; }
+[aria-pressed="true"] .sw { background: var(--accent); }
+[aria-pressed="true"] .sw::after { transform: translateX(16px); }
+.hints { margin: 0; padding-left: 18px; color: var(--muted); font-size: 12px; display: grid; gap: 4px; }
+.presets { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.preset[data-preset="mahogany"] > span:first-child { background: repeating-linear-gradient(172deg, #5a2013 0 3px, #3a130b 3px 5px, #6b2817 5px 9px) !important; }
+
+/* Wood grain inside the app screens (Mahogany theme) */
+.wood-screens .app { background:
+    linear-gradient(180deg, rgba(20, 6, 2, .30), rgba(20, 6, 2, .55)),
+    var(--a-wood, none) center / cover no-repeat,
+    var(--a-bg); }
+.wood-screens .card, .wood-screens .item, .wood-screens .chords figure, .wood-screens .seg, .wood-screens .chip:not(.on),
+.wood-screens .tile--plain, .wood-screens .string:not(.on), .wood-screens .choice, .wood-screens .node .dot { background-color: color-mix(in srgb, var(--a-surface) 84%, transparent); }
+.wood-screens .card, .wood-screens .item, .wood-screens .tile--plain, .wood-screens .choice { box-shadow: inset 0 1px 0 rgba(255, 220, 180, .07), 0 2px 8px rgba(0, 0, 0, .25); }
+.wood-screens .tabbar { background: color-mix(in srgb, var(--a-surface) 90%, transparent); backdrop-filter: blur(6px); }
+.wood-screens .h1, .wood-screens .big-chord, .wood-screens .big-note { text-shadow: 0 2px 6px rgba(0, 0, 0, .45); }
+.preset { border: 2px solid transparent; border-radius: 10px; padding: 0; height: 44px; cursor: pointer; overflow: hidden; display: grid; grid-template-rows: 1fr 10px; background: none; }
+.preset.on { border-color: var(--accent); }
+.preset span { display: block; }
+.preset .p-acc { display: flex; }
+.preset .p-acc i { flex: 1; }
+.preset-name { font-size: 12px; color: var(--muted); margin-top: -2px; }
+.colors { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.color { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; font-size: 12px; min-width: 0; }
+.color input { width: 26px; height: 26px; border: none; padding: 0; background: none; cursor: pointer; flex: none; border-radius: 6px; }
+.color input::-webkit-color-swatch-wrapper { padding: 0; }
+.color input::-webkit-color-swatch { border: 1px solid var(--line); border-radius: 6px; }
+.color span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+select, .range { width: 100%; }
+select { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); }
+.range-row { display: grid; grid-template-columns: 70px 1fr 38px; align-items: center; gap: 8px; font-size: 12px; }
+.range-row output { color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+input[type=range] { accent-color: var(--accent); }
+.checks { display: grid; gap: 2px; }
+.check { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 4px 2px; cursor: pointer; }
+.check input { accent-color: var(--accent); }
+.btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.btn { padding: 9px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); cursor: pointer; font-weight: 500; font-size: 13px; }
+.btn:hover { border-color: var(--accent); }
+.btn.danger.armed { border-color: #c2412d; color: #c2412d; }
+.saved { font-size: 12px; color: var(--muted); margin: 0; }
+#cfg-out { width: 100%; height: 120px; font-family: ui-monospace, Menlo, monospace; font-size: 11px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); padding: 8px; }
+
+/* ---------- Main ---------- */
+main { min-width: 0; display: flex; flex-direction: column; gap: 22px; }
+.intro h2 { font-family: var(--f-head); font-size: 26px; margin: 0 0 4px; text-wrap: balance; color: var(--on-wood); text-shadow: 0 1px 2px rgba(0,0,0,.6); }
+.intro p { margin: 0; color: var(--on-wood-muted); max-width: 65ch; text-shadow: 0 1px 2px rgba(0,0,0,.7); }
+#stage { display: flex; flex-wrap: wrap; gap: 36px 28px; align-items: flex-start; }
+@media (max-width: 880px) { #stage { justify-content: center; } }
+.shot { width: calc(300px * var(--zoom)); display: flex; flex-direction: column; gap: 10px; }
+.shot-head { display: flex; align-items: center; gap: 8px; }
+.shot-head h3 { margin: 0; font-family: var(--f-head); font-size: 15px; color: var(--on-wood); text-shadow: 0 1px 2px rgba(0,0,0,.6); }
+.shot-head .num { font-size: 11px; color: var(--on-wood-muted); font-variant-numeric: tabular-nums; margin-left: auto; }
+.grip { display: none; border: 1px solid var(--line); background: var(--panel); border-radius: 6px; width: 26px; height: 24px; padding: 0; cursor: grab; color: var(--muted); place-items: center; }
+.editing .grip { display: grid; }
+.shot-note { margin: 0; font-size: 12.5px; color: var(--on-wood-muted); line-height: 1.45; text-shadow: 0 1px 2px rgba(0,0,0,.7); }
+.panel { box-shadow: 0 20px 50px -20px rgba(0,0,0,.7); }
+.phone { box-shadow: 0 1px 0 #2a2a2e inset, 0 26px 50px -16px rgba(0,0,0,.75), 0 4px 10px rgba(0,0,0,.35) !important; }
+.ghost { opacity: .35; }
+
+/* ---------- Phone + app (themed by the user) ---------- */
+.phone { zoom: var(--zoom); width: 300px; height: 620px; padding: 8px; border-radius: 42px; background: #0b0b0d; box-shadow: 0 1px 0 #2a2a2e inset, 0 18px 40px -18px rgba(0,0,0,.45); flex: none; }
+.app { height: 100%; border-radius: 34px; overflow: hidden; background: var(--a-bg); color: var(--a-text); font-family: var(--a-body); display: flex; flex-direction: column; position: relative; font-size: 13px; line-height: 1.35; }
+.app b, .app strong { font-weight: 700; }
+.status { display: flex; justify-content: space-between; align-items: center; padding: 12px 24px 4px; font-size: 12px; font-weight: 600; flex: none; }
+.status .si { display: flex; gap: 5px; align-items: center; }
+.body { flex: 1; overflow-y: auto; padding: 8px 16px 16px; display: flex; flex-direction: column; gap: 14px; scrollbar-width: none; }
+.body::-webkit-scrollbar { display: none; }
+.body.bleed { padding: 0; gap: 0; }
+.app h2, .app p { margin: 0; }
+.h1 { font-family: var(--a-display); font-size: 25px; font-weight: 800; line-height: 1.08; letter-spacing: -0.01em; }
+.muted { color: var(--a-muted); }
+.small { font-size: 11.5px; }
+.label { font-size: 10.5px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--a-muted); }
+.card { background: var(--a-surface); border-radius: var(--a-r); padding: 14px; }
+.row { display: flex; align-items: center; gap: 10px; }
+.between { justify-content: space-between; }
+.app small { display: block; font-size: 11.5px; color: var(--a-muted); }
+.btn-primary { display: flex; align-items: center; justify-content: center; gap: 8px; background: var(--a-accent); color: var(--a-on-accent); font-weight: 700; padding: 14px; border-radius: calc(var(--a-r) * .85); font-size: 14px; cursor: pointer; }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 99px; background: color-mix(in srgb, var(--a-accent) 18%, var(--a-surface)); color: var(--a-accent); font-size: 11px; font-weight: 700; }
+.pill.live i { width: 7px; height: 7px; border-radius: 50%; background: var(--a-good); animation: pulse 1.2s infinite; }
+@keyframes pulse { 50% { opacity: .3; } }
+.topbar { display: flex; justify-content: space-between; align-items: center; min-height: 28px; }
+.seg { display: flex; padding: 3px; gap: 3px; border-radius: calc(var(--a-r) * .7); background: var(--a-surface); }
+.seg > * { flex: 1; text-align: center; padding: 8px 4px; border-radius: calc(var(--a-r) * .55); font-size: 12px; font-weight: 600; color: var(--a-muted); cursor: pointer; }
+.seg > .on { background: var(--a-accent); color: var(--a-on-accent); }
+.chip-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { padding: 6px 11px; border-radius: 99px; background: var(--a-surface); font-size: 11.5px; font-weight: 600; color: var(--a-muted); }
+.chip.on { background: color-mix(in srgb, var(--a-accent) 20%, var(--a-surface)); color: var(--a-accent); }
+
+/* home */
+.greet { display: flex; justify-content: space-between; align-items: flex-end; padding-top: 4px; }
+.avatar { width: 38px; height: 38px; border-radius: 50%; background: var(--a-surface); display: grid; place-items: center; font-weight: 700; color: var(--a-accent); border: 2px solid var(--a-accent); }
+.sec { position: relative; display: flex; flex-direction: column; gap: 8px; }
+.sgrip { display: none; position: absolute; top: -6px; right: -6px; z-index: 3; width: 24px; height: 24px; border-radius: 7px; background: var(--a-accent); color: var(--a-on-accent); place-items: center; cursor: grab; box-shadow: 0 2px 6px rgba(0,0,0,.3); }
+.editing .sgrip { display: grid; }
+.editing .sec { outline: 1.5px dashed color-mix(in srgb, var(--a-accent) 55%, transparent); outline-offset: 4px; border-radius: 6px; }
+.streak { display: flex; align-items: center; gap: 12px; }
+.streak .fl { width: 40px; height: 40px; border-radius: 12px; background: color-mix(in srgb, var(--a-accent) 20%, transparent); color: var(--a-accent); display: grid; place-items: center; flex: none; }
+.streak > div:nth-child(2) { flex: 1; min-width: 0; }
+.week { display: flex; gap: 3px; }
+.week i { width: 7px; height: 22px; border-radius: 4px; background: color-mix(in srgb, var(--a-text) 14%, transparent); }
+.week i.on { background: var(--a-accent); }
+.carousel { display: flex; gap: 10px; overflow-x: auto; margin: 0 -16px; padding: 0 16px 2px; scrollbar-width: none; }
+.carousel::-webkit-scrollbar { display: none; }
+.hook { flex: 0 0 136px; display: flex; flex-direction: column; gap: 6px; }
+.hook b { font-size: 13px; }
+.cover { position: relative; border-radius: var(--a-r); display: grid; place-items: center; color: #fff; aspect-ratio: 1; max-width: 100%; overflow: hidden; }
+.cover--accent { background: radial-gradient(circle at 30% 25%, color-mix(in srgb, var(--a-accent) 75%, #fff), var(--a-accent) 45%, color-mix(in srgb, var(--a-accent) 45%, #000)); }
+.cover--good { background: radial-gradient(circle at 70% 20%, color-mix(in srgb, var(--a-good) 70%, #fff), var(--a-good) 40%, color-mix(in srgb, var(--a-good) 40%, #000)); }
+.cover--muted { background: radial-gradient(circle at 40% 70%, color-mix(in srgb, var(--a-muted) 70%, #fff), var(--a-muted) 45%, color-mix(in srgb, var(--a-muted) 40%, #000)); }
+.cover .rank { position: absolute; top: 8px; left: 8px; background: rgba(0,0,0,.45); color: #fff; font-size: 10.5px; font-weight: 700; padding: 3px 7px; border-radius: 99px; }
+.cover .len { position: absolute; bottom: 8px; right: 8px; background: rgba(0,0,0,.45); color: #fff; font-size: 10.5px; font-weight: 700; padding: 3px 7px; border-radius: 99px; }
+.cover.big { aspect-ratio: 16 / 10; }
+.unlock { display: flex; gap: 12px; align-items: center; }
+.unlock .chord { width: 52px; flex: none; }
+.unlock > div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.bar { height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--a-text) 12%, transparent); overflow: hidden; margin-top: 4px; }
+.bar i { display: block; height: 100%; background: var(--a-accent); border-radius: 3px; }
+.tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.tile { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; padding: 12px 10px; border-radius: var(--a-r); border: none; text-align: left; font-size: 12px; font-weight: 600; cursor: pointer; min-width: 0; font-family: var(--a-body); }
+.tile .tl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.tile--plain { background: var(--a-surface); color: var(--a-text); }
+.tile--plain svg { color: var(--a-accent); }
+.tile--accent { background: var(--a-accent); color: var(--a-on-accent); }
+.tile--good { background: color-mix(in srgb, var(--a-good) 22%, var(--a-surface)); color: var(--a-text); }
+.tile--good svg { color: var(--a-good); }
+.editing .tile, .editing .tab { cursor: grab; outline: 1.5px dashed color-mix(in srgb, var(--a-text) 35%, transparent); outline-offset: -3px; }
+.cont { display: flex; align-items: center; gap: 12px; }
+.cont .cover { width: 46px; flex: none; border-radius: calc(var(--a-r) * .6); }
+.cont > div:nth-child(2) { flex: 1; min-width: 0; }
+.play-btn { width: 38px; height: 38px; border-radius: 50%; background: var(--a-accent); color: var(--a-on-accent); display: grid; place-items: center; flex: none; }
+
+.tabbar { display: flex; padding: 8px 4px 16px; background: var(--a-surface); border-top: 1px solid color-mix(in srgb, var(--a-text) 8%, transparent); flex: none; }
+.tab { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 10px; font-weight: 600; color: var(--a-muted); padding: 4px 0; border-radius: 10px; }
+.tab.on { color: var(--a-accent); }
+
+/* onboarding */
+.ob-top { display: flex; justify-content: space-between; align-items: center; }
+.dots { display: flex; gap: 5px; }
+.dots i { width: 22px; height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--a-text) 18%, transparent); }
+.dots i.on { background: var(--a-accent); }
+.choices { display: grid; gap: 8px; }
+.choice { display: flex; align-items: center; gap: 12px; padding: 13px 14px; border-radius: var(--a-r); background: var(--a-surface); border: 2px solid transparent; cursor: pointer; font-weight: 600; }
+.choice > svg:first-child { color: var(--a-accent); flex: none; }
+.choice > span { flex: 1; }
+.choice.on { border-color: var(--a-accent); }
+.choice.on > svg:last-child { color: var(--a-accent); }
+.field { display: flex; flex-direction: column; gap: 8px; }
+
+/* lesson */
+.chords { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 0 16px; }
+.chords figure { margin: 0; background: var(--a-surface); border-radius: calc(var(--a-r) * .8); padding: 8px 8px 6px; display: flex; flex-direction: column; align-items: center; gap: 2px; flex: 0 0 76px; }
+.chords figcaption { font-family: var(--a-display); font-weight: 800; font-size: 15px; }
+.chord { width: 60px; height: auto; color: var(--a-text); display: block; }
+.strum { display: flex; gap: 6px; margin-top: 10px; }
+.strum span { flex: 1; text-align: center; padding: 8px 0; border-radius: 8px; background: color-mix(in srgb, var(--a-text) 7%, transparent); font-weight: 800; font-size: 15px; }
+.strum span.on { background: var(--a-accent); color: var(--a-on-accent); }
+
+/* practice */
+.now { display: flex; justify-content: space-between; align-items: flex-end; padding: 6px 4px 0; }
+.big-chord { font-family: var(--a-display); font-size: 76px; font-weight: 800; line-height: .95; color: var(--a-accent); }
+.next { text-align: right; }
+.mid-chord { font-family: var(--a-display); font-size: 38px; font-weight: 800; line-height: 1; opacity: .7; }
+.beats { display: flex; gap: 8px; }
+.beats i { flex: 1; height: 8px; border-radius: 4px; background: color-mix(in srgb, var(--a-text) 12%, transparent); }
+.beats i.on { background: var(--a-accent); }
+.bars { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 10px; }
+.bars > div { display: flex; flex-direction: column; gap: 6px; align-items: center; }
+.bars b { font-family: var(--a-display); font-size: 14px; }
+.bdots { display: flex; gap: 3px; }
+.bdots i { width: 9px; height: 9px; border-radius: 50%; }
+.d-hit { background: var(--a-good); }
+.d-late { background: var(--a-accent); }
+.d-miss { background: transparent; box-shadow: inset 0 0 0 1.5px var(--a-muted); }
+.legend { display: flex; gap: 12px; margin-top: 10px; font-size: 10.5px; color: var(--a-muted); }
+.legend span { display: flex; align-items: center; gap: 4px; }
+.legend i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.stat .num { display: block; font-family: var(--a-display); font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.tip { display: flex; gap: 10px; align-items: flex-start; }
+.tip > svg { color: var(--a-accent); flex: none; margin-top: 1px; }
+
+/* tuner */
+.gauge svg { width: 100%; height: auto; display: block; }
+.tnote { text-align: center; margin-top: -8px; }
+.big-note { font-family: var(--a-display); font-size: 64px; font-weight: 800; line-height: 1; }
+.strings { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.string { aspect-ratio: 1; border-radius: 50%; background: var(--a-surface); display: grid; place-items: center; font-weight: 800; font-family: var(--a-display); cursor: pointer; }
+.string.on { background: var(--a-accent); color: var(--a-on-accent); }
+.switch { width: 40px; height: 24px; border-radius: 12px; background: color-mix(in srgb, var(--a-text) 18%, transparent); position: relative; flex: none; }
+.switch i { position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: var(--a-text); }
+.switch.on { background: var(--a-good); }
+.switch.on i { left: 19px; background: #fff; }
+
+/* plan */
+.goal { display: flex; gap: 12px; align-items: center; }
+.goal > svg { color: var(--a-accent); flex: none; }
+.path { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; position: relative; }
+.path::before { content: ""; position: absolute; left: 21px; top: 22px; bottom: 22px; width: 2px; background: color-mix(in srgb, var(--a-text) 14%, transparent); }
+.node { display: flex; align-items: center; gap: 12px; padding: 7px 0; position: relative; }
+.node .dot { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font-family: var(--a-display); font-weight: 800; font-size: 15px; flex: none; background: var(--a-surface); color: var(--a-muted); border: 2px solid var(--a-bg); }
+.node--done .dot { background: var(--a-good); color: #fff; }
+.node--now .dot { background: var(--a-accent); color: var(--a-on-accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--a-accent) 30%, transparent); }
+.node--next .dot { color: var(--a-text); box-shadow: inset 0 0 0 2px var(--a-accent); }
+.node .ninfo { flex: 1; min-width: 0; }
+.node--lock .ninfo { opacity: .55; }
+
+/* library */
+.list { display: flex; flex-direction: column; gap: 8px; }
+.item { display: flex; align-items: center; gap: 10px; background: var(--a-surface); border-radius: var(--a-r); padding: 10px; }
+.thumb { width: 44px; height: 44px; border-radius: calc(var(--a-r) * .6); display: grid; place-items: center; color: #fff; flex: none; }
+.iinfo { flex: 1; min-width: 0; }
+.iinfo b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mini-chips { display: flex; gap: 4px; margin-top: 4px; }
+.mini-chips span { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 5px; background: color-mix(in srgb, var(--a-text) 10%, transparent); }
+.lv { font-size: 10.5px; font-weight: 700; color: var(--a-accent); text-align: right; flex: none; max-width: 70px; }
+.lv.ok { color: var(--a-good); }
+
+/* record (camera viewfinder is always dark) */
+.cam { flex: 1; position: relative; display: flex; flex-direction: column; justify-content: space-between; padding: 44px 14px 18px; color: #fff;
+  background: radial-gradient(ellipse at 50% 35%, color-mix(in srgb, var(--a-accent) 35%, #2a2a2a), #0d0d0d 75%); }
+.cam-top { display: flex; justify-content: space-between; }
+.pill.dark { background: rgba(0,0,0,.5); color: #fff; }
+.cam-guide { align-self: center; display: flex; align-items: center; gap: 10px; background: rgba(0,0,0,.45); padding: 10px 18px; border-radius: 99px; font-family: var(--a-display); font-weight: 800; font-size: 26px; }
+.cam-guide span:last-child { color: var(--a-accent); }
+.rec-row { display: flex; align-items: center; justify-content: space-between; }
+.rec-btn { width: 70px; height: 70px; border-radius: 50%; border: 4px solid #fff; display: grid; place-items: center; }
+.rec-btn i { width: 52px; height: 52px; border-radius: 50%; background: #ff3b30; }
+.timer { text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; font-size: 12px; margin-bottom: 10px; }
+.share { padding: 14px 16px 22px; display: flex; flex-direction: column; gap: 10px; background: var(--a-surface); }
+
+/* editable text */
+.editing [data-text] { outline: 1px dashed color-mix(in srgb, var(--a-accent) 70%, transparent); outline-offset: 2px; border-radius: 3px; cursor: text; }
+.editing [data-text]:focus { outline-style: solid; }
+
+/* tile popover */
+.pop { position: fixed; z-index: 50; width: 252px; background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 12px; padding: 12px; box-shadow: 0 16px 40px -12px rgba(0,0,0,.4); display: flex; flex-direction: column; gap: 10px; }
+.pop label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.pop input[type=text] { width: 100%; padding: 7px 9px; border-radius: 7px; border: 1px solid var(--line); background: var(--bg); }
+.icon-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; }
+.icon-grid button, .style-row button { border: 1px solid var(--line); background: var(--bg); border-radius: 7px; height: 34px; display: grid; place-items: center; cursor: pointer; padding: 0; }
+.icon-grid button.on, .style-row button.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.style-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.style-row button { font-size: 12px; }
+.toast { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 20px); transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 9px 16px; border-radius: 99px; font-size: 13px; font-weight: 500; z-index: 60; }
+
+@media (prefers-reduced-motion: reduce) { .pill.live i { animation: none; } * { transition: none !important; } }
+</style>
+
+<div class="woodbg" aria-hidden="true"><canvas id="wood"></canvas></div>
+<div class="wrap" id="wrap">
+  <aside class="panel" aria-label="Customize">
+    <div class="brand">
+      <div class="brand-mark" id="brand-mark"></div>
+      <div><h1>Hookline</h1><p>UI kit ¬∑ 8 screens</p></div>
+    </div>
+
+    <div class="group">
+      <button class="edit-toggle" id="edit-toggle" aria-pressed="false">
+        <span><b>Edit layout &amp; text</b><small id="edit-sub">Off: screens are clickable like a prototype</small></span>
+        <span class="sw"></span>
+      </button>
+      <ul class="hints" id="hints" hidden>
+        <li>Drag home tiles, tab icons and home sections</li>
+        <li>Drag the ‚ãÆ‚ãÆ handle to reorder screens</li>
+        <li>Click any dashed text to rewrite it</li>
+        <li>Click a home tile to change its icon, label or color</li>
+      </ul>
+    </div>
+
+    <div class="group">
+      <p class="group-title">Theme</p>
+      <div class="presets" id="presets"></div>
+      <p class="preset-name" id="preset-name"></p>
+      <label class="check" for="wood-toggle"><input type="checkbox" id="wood-toggle">Mahogany grain on app screens</label>
+    </div>
+
+    <div class="group">
+      <p class="group-title">Colors</p>
+      <div class="colors" id="colors"></div>
+    </div>
+
+    <div class="group">
+      <p class="group-title">Type &amp; shape</p>
+      <select id="font-select" aria-label="Font pairing"></select>
+      <div class="range-row"><label for="radius">Corners</label><input class="range" type="range" id="radius" min="0" max="28" step="1"><output id="radius-out"></output></div>
+      <div class="range-row"><label for="zoom">Zoom</label><input class="range" type="range" id="zoom" min="60" max="110" step="5"><output id="zoom-out"></output></div>
+    </div>
+
+    <div class="group">
+      <p class="group-title">Home sections</p>
+      <div class="checks" id="sec-list"></div>
+    </div>
+
+    <div class="group">
+      <p class="group-title">Screens</p>
+      <div class="checks" id="scr-list"></div>
+    </div>
+
+    <div class="group">
+      <div class="btns">
+        <button class="btn" id="copy-btn">Copy config</button>
+        <button class="btn danger" id="reset-btn">Reset all</button>
+      </div>
+      <textarea id="cfg-out" readonly hidden aria-label="Config JSON"></textarea>
+      <p class="saved">Changes save in this browser automatically.</p>
+    </div>
+  </aside>
+
+  <main>
+    <div class="intro">
+      <h2>Hookline app screens</h2>
+      <p>Each screen shows one part of the experience: goal setup, today's trending hooks, learning a hook at your level, mic feedback, tuning, the chord-unlock plan, your two song lists, and posting a clip. Song and artist names are placeholders.</p>
+    </div>
+    <div id="stage"></div>
+  </main>
+</div>
+
+<div class="pop" id="pop" hidden role="dialog" aria-label="Edit tile">
+  <div><label for="pop-label">Label</label><input type="text" id="pop-label" maxlength="14"></div>
+  <div><label>Icon</label><div class="icon-grid" id="pop-icons"></div></div>
+  <div><label>Style</label><div class="style-row" id="pop-styles"></div></div>
+  <button class="btn" id="pop-done">Done</button>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js"></script>
+<script>
+(function () {
+  const KEY = 'hookline-ui-kit-v1';
+
+  const ICONS = {
+    home: '<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/>',
+    note: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
+    tuner: '<path d="M3.5 17a8.5 8.5 0 1 1 17 0"/><path d="M12 17l4.5-6"/><circle cx="12" cy="17" r="1.2" fill="currentColor"/>',
+    library: '<rect x="3" y="4" width="4" height="16" rx="1"/><rect x="9" y="4" width="4" height="16" rx="1"/><path d="M15 5.5l3.8-1 3 14.5-3.8 1z"/>',
+    user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+    mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
+    record: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4" fill="currentColor"/>',
+    chords: '<rect x="5" y="3" width="14" height="18" rx="1.5"/><path d="M5 8h14M5 13h14M9.7 3v18M14.3 3v18"/>',
+    play: '<circle cx="12" cy="12" r="9"/><path d="M10 8.5v7l6-3.5z" fill="currentColor"/>',
+    flame: '<path d="M12 3c1 4 5 5.5 5 10a5 5 0 0 1-10 0c0-2.5 1.5-3.5 2-5.5 1 1 1.5 2 1.5 3 1.5-1.5 2-4.5 1.5-7.5z"/>',
+    pick: '<path d="M12 21c-3-3.5-7-9-7-13 0-3 3.5-4 7-4s7 1 7 4c0 4-4 9.5-7 13z"/>',
+    metronome: '<path d="M8.5 3h7L19 21H5z"/><path d="M12 15l5-9"/>',
+    star: '<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.5 2.9 1-6.1L3.2 9.5l6.1-.9z"/>',
+    lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+    check: '<path d="M5 12l5 5 9-10"/>',
+    trend: '<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
+    path: '<circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h7a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h7"/>',
+    back: '<path d="M15 5l-7 7 7 7"/>',
+    chev: '<path d="M9 5l7 7-7 7"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>',
+    grip: '<circle cx="9" cy="6" r="1.4" fill="currentColor"/><circle cx="15" cy="6" r="1.4" fill="currentColor"/><circle cx="9" cy="12" r="1.4" fill="currentColor"/><circle cx="15" cy="12" r="1.4" fill="currentColor"/><circle cx="9" cy="18" r="1.4" fill="currentColor"/><circle cx="15" cy="18" r="1.4" fill="currentColor"/>',
+    book: '<path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 19V5"/>',
+    users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6"/>',
+    trophy: '<path d="M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4M12 14v4M8 21h8"/>',
+    guitar: '<path d="M20 4l-6.5 6.5"/><path d="M18.5 2.5l3 3"/><path d="M11 11.5a3.5 3.5 0 0 0-5 0c-.8.8-.6 1.8-1.6 2.3C3 14.5 2 16 3.5 18.5S7 22 9.5 21c.6-1.3 1.6-1 2.4-1.8a3.5 3.5 0 0 0 0-5"/><circle cx="8.5" cy="16" r="1.3"/>'
+  };
+  const TILE_ICONS = ['tuner','mic','chords','library','record','book','metronome','note','star','trophy','users','guitar'];
+
+  const PRESETS = {
+    mahogany: { name: 'Mahogany', wood: true, c: { bg: '#3a150d', surface: '#2a0f0a', text: '#f8eadb', muted: '#d3ae95', accent: '#e9b04b', good: '#a2d98c' } },
+    amp:     { name: 'Amp Black',  c: { bg: '#141210', surface: '#221e1a', text: '#f2ebe1', muted: '#a59a8c', accent: '#ff7a1a', good: '#7bd88f' } },
+    rosewood: { name: 'Rosewood',   c: { bg: '#2a1714', surface: '#3d241f', text: '#f6e7d8', muted: '#c4a593', accent: '#e0ad48', good: '#8fd18a' } },
+    pedal:    { name: 'Pedalboard', c: { bg: '#0d1530', surface: '#18234c', text: '#e6ecff', muted: '#8f9bc4', accent: '#39d0ff', good: '#a3f06f' } },
+    seafoam:  { name: 'Seafoam',    c: { bg: '#e6f3ee', surface: '#ffffff', text: '#12302a', muted: '#557069', accent: '#e0483e', good: '#228a5c' } },
+    maple:    { name: 'Maple',      c: { bg: '#f7f2e8', surface: '#ffffff', text: '#2b1a0c', muted: '#7a5f47', accent: '#1f5fd1', good: '#178049' } }
+  };
+  const COLOR_LABELS = { bg: 'Background', surface: 'Cards', text: 'Text', muted: 'Secondary', accent: 'Accent', good: 'In tune' };
+
+  const FONTS = {
+    bold:    { label: 'Bold: Bricolage + Inter',  d: "'Bricolage Grotesque', system-ui, sans-serif", b: "'Inter', system-ui, sans-serif" },
+    stage:   { label: 'Stage: Archivo + DM Sans', d: "'Archivo', system-ui, sans-serif", b: "'DM Sans', system-ui, sans-serif" },
+    classic: { label: 'Classic: Fraunces + DM Sans', d: "'Fraunces', Georgia, serif", b: "'DM Sans', system-ui, sans-serif" },
+    friendly:{ label: 'Friendly: Rubik',          d: "'Rubik', system-ui, sans-serif", b: "'Rubik', system-ui, sans-serif" },
+    tech:    { label: 'Tech: Space Grotesk + Inter', d: "'Space Grotesk', system-ui, sans-serif", b: "'Inter', system-ui, sans-serif" }
+  };
+
+  const NAV = { home: { label: 'Home', icon: 'home' }, plan: { label: 'Plan', icon: 'path' }, tuner: { label: 'Tuner', icon: 'tuner' }, library: { label: 'Library', icon: 'library' }, me: { label: 'Me', icon: 'user' } };
+
+  const SECTION_NAMES = { streak: 'Practice streak', hooks: "Today's hooks", unlock: 'Next chord unlock', actions: 'Quick action tiles', cont: 'Continue practicing' };
+  const SCREEN_DEFS = {
+    onboard:  { name: 'Onboarding', nav: null, note: 'Goal-first setup. Three taps and the plan is built around what they picked.' },
+    home:     { name: 'Home', nav: 'home', note: "Today's trending hooks lead. Drag sections and tiles to test what should come first." },
+    lesson:   { name: 'Hook lesson', nav: null, note: 'Every hook has three levels. Chords and strum pattern fit on one screen. Tap the levels.' },
+    practice: { name: 'Mic practice', nav: null, note: 'Mic feedback grades one thing: did you change chords on the beat? Tips are specific.' },
+    tuner:    { name: 'Tuner', nav: 'tuner', note: 'Big note, clear needle, green zone means in tune. Tap a string to select it.' },
+    plan:     { name: 'Learning plan', nav: 'plan', note: 'Progress is counted in songs unlocked, so every new chord has a visible payoff.' },
+    library:  { name: 'Library', nav: 'library', note: "Two lists: songs you can play and songs you want. 'Want' items show what is blocking you." },
+    record:   { name: 'Record & share', nav: null, note: 'One-tap 15-second vertical clip with chord prompts on screen, ready to post.' }
+  };
+
+  const DEFAULT = {
+    v: 1, preset: 'mahogany', colors: { ...PRESETS.mahogany.c }, wood: true, font: 'bold', radius: 16, zoom: 100,
+    sections: ['hooks', 'streak', 'unlock', 'actions', 'cont'].map(id => ({ id, on: true })),
+    tiles: [
+      { id: 't1', label: 'Tuner', icon: 'tuner', style: 'accent' },
+      { id: 't2', label: 'Practice', icon: 'mic', style: 'plain' },
+      { id: 't3', label: 'Chords', icon: 'chords', style: 'plain' },
+      { id: 't4', label: 'Record', icon: 'record', style: 'plain' },
+      { id: 't5', label: 'Lessons', icon: 'book', style: 'plain' },
+      { id: 't6', label: 'Friends', icon: 'users', style: 'good' }
+    ],
+    nav: ['home', 'plan', 'tuner', 'library', 'me'],
+    screens: Object.keys(SCREEN_DEFS).map(id => ({ id, on: true })),
+    texts: {}
+  };
+
+  const clone = o => JSON.parse(JSON.stringify(o));
+  function load() {
+    try {
+      const s = JSON.parse(localStorage.getItem(KEY));
+      if (s && s.v === 1) {
+        const m = Object.assign(clone(DEFAULT), s);
+        m.colors = Object.assign({ ...DEFAULT.colors }, s.colors || {});
+        return m;
+      }
+    } catch (e) {}
+    return null;
+  }
+  let state = load() || clone(DEFAULT);
+  let saveTimer;
+  function save() { clearTimeout(saveTimer); saveTimer = setTimeout(() => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }, 200); }
+
+  const ui = { goal: 0, mins: 1, level: 0, lib: 'can', string: 1 };
+  let editing = false;
+  let sortables = [];
+  let lastDrag = 0;
+
+  const $ = s => document.querySelector(s);
+  const stage = $('#stage');
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const ic = (n, s = 20) => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n] || ''}</svg>`;
+  const t = (key, def, tag = 'span', cls = '') => `<${tag} data-text="${key}"${cls ? ` class="${cls}"` : ''}>${esc(state.texts[key] ?? def)}</${tag}>`;
+
+  /* ---------- theme ---------- */
+  function onColor(hex) {
+    const n = parseInt(hex.slice(1), 16), r = (n >> 16) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
+    const L = v => v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    return (0.2126 * L(r) + 0.7152 * L(g) + 0.0722 * L(b)) > 0.45 ? '#15110d' : '#ffffff';
+  }
+  function applyTheme() {
+    const r = document.documentElement.style, c = state.colors, f = FONTS[state.font] || FONTS.bold;
+    r.setProperty('--a-bg', c.bg); r.setProperty('--a-surface', c.surface); r.setProperty('--a-text', c.text);
+    r.setProperty('--a-muted', c.muted); r.setProperty('--a-accent', c.accent); r.setProperty('--a-good', c.good);
+    r.setProperty('--a-on-accent', onColor(c.accent));
+    r.setProperty('--a-display', f.d); r.setProperty('--a-body', f.b);
+    r.setProperty('--a-r', state.radius + 'px');
+    r.setProperty('--zoom', state.zoom / 100);
+    $('#radius').value = state.radius; $('#radius-out').textContent = state.radius + 'px';
+    $('#zoom').value = state.zoom; $('#zoom-out').textContent = state.zoom + '%';
+    $('#font-select').value = state.font;
+    Object.keys(COLOR_LABELS).forEach(k => { const el = $('#c-' + k); if (el) el.value = c[k]; });
+    document.querySelectorAll('.preset').forEach(b => b.classList.toggle('on', b.dataset.preset === state.preset));
+    $('#preset-name').textContent = state.preset === 'custom' ? 'Custom colors' : PRESETS[state.preset].name;
+    document.body.classList.toggle('wood-screens', !!state.wood);
+    $('#wood-toggle').checked = !!state.wood;
+    if (state.wood) ensureScreenWood();
+  }
+
+  /* ---------- small renderers ---------- */
+  const CH = { Em: [0,2,2,0,0,0], G: [3,2,0,0,0,3], C: ['x',3,2,0,1,0], D: ['x','x',0,2,3,2], Am: ['x',0,2,2,1,0],
+    Em7: [0,2,2,0,3,0], Cadd9: ['x',3,2,0,3,0], Dsus4: ['x','x',0,2,3,3], Am7: ['x',0,2,0,1,0] };
+  function chordSVG(fr) {
+    let s = '<svg class="chord" viewBox="0 0 64 70" aria-hidden="true">';
+    for (let i = 0; i < 6; i++) { const x = 8 + i * 9.6; s += `<line x1="${x}" y1="14" x2="${x}" y2="62" stroke="currentColor" stroke-opacity=".55" stroke-width="1"/>`; }
+    for (let f = 0; f <= 4; f++) { const y = 14 + f * 12; s += `<line x1="8" y1="${y}" x2="56" y2="${y}" stroke="currentColor" stroke-opacity="${f ? .55 : 1}" stroke-width="${f ? 1 : 3}"/>`; }
+    fr.forEach((v, i) => {
+      const x = 8 + i * 9.6;
+      if (v === 'x') s += `<path d="M${x - 3} 3l6 6M${x + 3} 3l-6 6" stroke="currentColor" stroke-opacity=".6" stroke-width="1.4" fill="none"/>`;
+      else if (v === 0) s += `<circle cx="${x}" cy="6" r="3" fill="none" stroke="currentColor" stroke-width="1.4"/>`;
+      else s += `<circle cx="${x}" cy="${14 + (v - 0.5) * 12}" r="4.2" fill="var(--a-accent)"/>`;
+    });
+    return s + '</svg>';
+  }
+  function gaugeSVG() {
+    const cx = 110, cy = 118, r = 92; let s = '<svg viewBox="0 0 220 134" aria-label="Tuning needle">';
+    const pt = (c, rad) => { const a = (-90 + c * 1.8) * Math.PI / 180; return [cx + rad * Math.cos(a), cy + rad * Math.sin(a)]; };
+    const [gx1, gy1] = pt(-5, r + 7), [gx2, gy2] = pt(5, r + 7);
+    s += `<path d="M${gx1} ${gy1} A${r + 7} ${r + 7} 0 0 1 ${gx2} ${gy2}" stroke="var(--a-good)" stroke-width="6" stroke-linecap="round" fill="none"/>`;
+    for (let c = -50; c <= 50; c += 5) {
+      const major = c % 25 === 0, len = major ? 14 : 7;
+      const [x1, y1] = pt(c, r), [x2, y2] = pt(c, r - len);
+      s += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="var(--a-muted)" stroke-width="${major ? 2 : 1.2}" stroke-linecap="round"/>`;
+    }
+    [[-50, '-50'], [0, '0'], [50, '+50']].forEach(([c, l]) => { const [x, y] = pt(c, r - 26); s += `<text x="${x}" y="${y + 4}" text-anchor="middle" font-size="10" font-weight="700" fill="var(--a-muted)">${l}</text>`; });
+    s += `<g class="needle" style="transform-origin:${cx}px ${cy}px;transform:rotate(-10.8deg)"><line x1="${cx}" y1="${cy}" x2="${cx}" y2="${cy - 84}" stroke="var(--a-accent)" stroke-width="3" stroke-linecap="round"/></g>`;
+    s += `<circle cx="${cx}" cy="${cy}" r="7" fill="var(--a-accent)"/><circle cx="${cx}" cy="${cy}" r="3" fill="var(--a-bg)"/>`;
+    return s + '</svg>';
+  }
+  const statusBar = () => `<div class="status"><span>9:41</span><span class="si"><svg width="16" height="10" viewBox="0 0 16 10" aria-hidden="true"><rect x="0" y="6" width="3" height="4" rx="1" fill="currentColor"/><rect x="4.3" y="4" width="3" height="6" rx="1" fill="currentColor"/><rect x="8.6" y="2" width="3" height="8" rx="1" fill="currentColor"/><rect x="12.9" y="0" width="3" height="10" rx="1" fill="currentColor"/></svg><svg width="24" height="11" viewBox="0 0 24 11" aria-hidden="true"><rect x=".5" y=".5" width="20" height="10" rx="3" fill="none" stroke="currentColor" stroke-opacity=".5"/><rect x="2" y="2" width="14" height="7" rx="1.6" fill="currentColor"/><rect x="21.5" y="3.5" width="1.6" height="4" rx=".8" fill="currentColor" fill-opacity=".5"/></svg></span></div>`;
+  const tabbar = active => `<nav class="tabbar" data-nav>${state.nav.map(id => `<div class="tab${id === active ? ' on' : ''}" data-navid="${id}">${ic(NAV[id].icon, 21)}<span>${NAV[id].label}</span></div>`).join('')}</nav>`;
+  const sgrip = `<span class="sgrip" title="Drag section">${ic('grip', 14)}</span>`;
+
+  /* ---------- home sections ---------- */
+  const HOOKS = [
+    { t: 'Glasshouse', a: 'The Low Tides', m: '2 chords ¬∑ 15s', rank: '#1', tone: 'accent' },
+    { t: 'Midnight Diner', a: 'Juno Park', m: '2 chords ¬∑ 12s', rank: '#2', tone: 'good' },
+    { t: 'Sunday Static', a: 'Avery Cole', m: '3 chords ¬∑ 15s', rank: '#4', tone: 'muted' }
+  ];
+  const SECTIONS = {
+    streak: () => `<div class="card streak"><div class="fl">${ic('flame', 22)}</div><div>${t('streak-title', '6-day streak', 'b')}<small>${t('streak-sub', 'Play 10 min today to keep it going')}</small></div><div class="week" aria-label="6 of 7 days">${[1,1,1,1,1,1,0].map(d => `<i class="${d ? 'on' : ''}"></i>`).join('')}</div></div>`,
+    hooks: () => `<div class="row between"><div>${t('hooks-title', "Today's hooks", 'b')}<small>${t('hooks-sub', 'Trending now, simplified for you')}</small></div><span class="pill">See all</span></div>
+      <div class="carousel">${HOOKS.map((h, i) => `<div class="hook"><div class="cover cover--${h.tone}"><span class="rank">${h.rank}</span>${ic('play', 30)}</div><div>${t('hk-t' + i, h.t, 'b')}<small>${t('hk-a' + i, h.a)} ¬∑ ${h.m}</small></div></div>`).join('')}</div>`,
+    unlock: () => `<div class="card unlock">${chordSVG(CH.G)}<div><span class="label">${t('ul-label', 'Next unlock')}</span>${t('ul-title', 'Learn G major', 'b')}<small>${t('ul-sub', 'Unlocks 214 hooks ¬∑ 3 trending this week')}</small><div class="bar"><i style="width:60%"></i></div></div></div>`,
+    actions: () => `<div class="tiles" data-tiles>${state.tiles.map(x => `<button class="tile tile--${x.style}" data-tile="${x.id}">${ic(x.icon, 22)}<span class="tl">${esc(x.label)}</span></button>`).join('')}</div>`,
+    cont: () => `<div class="card cont"><div class="cover cover--accent">${ic('note', 18)}</div><div>${t('ct-title', 'Continue practicing', 'b')}<small>${t('ct-sub', 'Glasshouse ¬∑ 4-chord ¬∑ 70%')}</small></div><div class="play-btn">${ic('play', 22)}</div></div>`
+  };
+
+  /* ---------- screens ---------- */
+  const GOALS = [{ icon: 'trend', l: 'Songs from my feed' }, { icon: 'flame', l: 'Campfire classics' }, { icon: 'note', l: 'Write my own songs' }, { icon: 'users', l: 'Play with friends' }];
+  const LEVELS = [{ l: '2 chords', c: ['Em', 'G'] }, { l: '4 chords', c: ['Em', 'G', 'C', 'D'] }, { l: 'Full', c: ['Em7', 'G', 'Cadd9', 'Dsus4', 'Am7'] }];
+  const BARS = [['Em', ['hit','hit','hit','hit']], ['G', ['late','hit','hit','hit']], ['Em', ['hit','hit','miss','hit']], ['G', ['late','hit','hit','hit']]];
+  const PLAN = [
+    { c: 'Em', n: 'E minor', u: '86 hooks unlocked', st: 'done' },
+    { c: 'G', n: 'G major', u: '+214 hooks when learned', st: 'now' },
+    { c: 'C', n: 'C major', u: '+380 hooks', st: 'next' },
+    { c: 'D', n: 'D major', u: '+290 hooks', st: 'lock' },
+    { c: 'Am', n: 'A minor', u: '+175 hooks', st: 'lock' }
+  ];
+  const LIB = {
+    can: [['Sunday Static', 'Avery Cole', ['Em', 'G'], '2-chord'], ['Glasshouse', 'The Low Tides', ['Em', 'G', 'C', 'D'], '4-chord'], ['Porch Light', 'Mara & the Wires', ['G', 'C', 'D'], '4-chord'], ['Cold Coffee', 'Benji Ross', ['Am', 'C', 'G'], 'Full']],
+    want: [['Midnight Diner', 'Juno Park', ['C', 'G', 'Am', 'F'], 'Needs F'], ['Velvet Hour', 'Saint Ivy', ['Dm', 'A', 'Bb'], 'Needs barre'], ['Northbound', 'Kite Theory', ['D', 'A', 'Bm', 'G'], 'Needs Bm']]
+  };
+  const TONES = ['accent', 'good', 'muted'];
+
+  const RENDER = {
+    onboard: () => `<div class="ob-top"><div class="dots"><i class="on"></i><i class="on"></i><i></i></div><span class="muted small">Skip</span></div>
+      ${t('ob-title', 'What do you want to play?', 'h2', 'h1')}
+      ${t('ob-sub', 'We build your plan around this. You can change it any time.', 'p', 'muted')}
+      <div class="choices">${GOALS.map((g, i) => `<div class="choice${ui.goal === i ? ' on' : ''}" role="button" data-goal="${i}">${ic(g.icon)}${t('goal-' + i, g.l)}${ui.goal === i ? ic('check', 18) : ''}</div>`).join('')}</div>
+      <div class="field"><span class="label">${t('ob-time', 'Daily practice')}</span><div class="seg">${['5 min', '10 min', '20 min'].map((m, i) => `<div role="button" class="${ui.mins === i ? 'on' : ''}" data-mins="${i}">${m}</div>`).join('')}</div></div>
+      <div class="btn-primary">${t('ob-cta', 'Build my plan')}</div>`,
+
+    home: () => `<div class="greet"><div>${t('home-hi', 'Hey Sam', 'p', 'muted')}${t('home-title', 'Ready to play?', 'h2', 'h1')}</div><div class="avatar">S</div></div>
+      ${state.sections.filter(s => s.on).map(s => `<section class="sec" data-sec="${s.id}">${sgrip}${SECTIONS[s.id]()}</section>`).join('')}`,
+
+    lesson: () => { const L = LEVELS[ui.level]; return `<div class="topbar">${ic('back')}<span class="muted small">Today's hook</span>${ic('star')}</div>
+      <div class="cover cover--accent big"><span class="rank">Trending #1</span>${ic('play', 42)}<span class="len">0:15</span></div>
+      <div>${t('ls-title', 'Glasshouse', 'h2', 'h1')}${t('ls-artist', 'The Low Tides ¬∑ chorus hook', 'p', 'muted')}</div>
+      <div class="seg">${LEVELS.map((l, i) => `<div role="button" class="${ui.level === i ? 'on' : ''}" data-level="${i}">${l.l}</div>`).join('')}</div>
+      <div class="chords">${L.c.map(c => `<figure>${chordSVG(CH[c])}<figcaption>${c}</figcaption></figure>`).join('')}</div>
+      <div class="card"><div class="row between"><b>${t('ls-strum', 'Strum pattern')}</b><span class="muted small">70 BPM (slowed from 84)</span></div><div class="strum">${'D D U U D U'.split(' ').map((s, i) => `<span class="${i === 2 ? 'on' : ''}" aria-label="${s === 'D' ? 'down' : 'up'}">${s === 'D' ? '‚Üì' : '‚Üë'}</span>`).join('')}</div></div>
+      <div class="btn-primary">${ic('mic', 18)}${t('ls-cta', 'Practice with mic')}</div>`; },
+
+    practice: () => `<div class="topbar">${ic('back')}<span class="pill live"><i></i>Listening</span>${ic('metronome')}</div>
+      <div class="now"><div><span class="muted small">Now</span><div class="big-chord">Em</div></div><div class="next"><span class="muted small">Next in 2 beats</span><div class="mid-chord">G</div></div></div>
+      <div class="beats">${[1, 2, 3, 4].map(b => `<i class="${b <= 2 ? 'on' : ''}"></i>`).join('')}</div>
+      <div class="card"><b class="small">${t('pr-bars', 'Last 4 bars')}</b><div class="bars">${BARS.map(([c, d]) => `<div><b>${c}</b><div class="bdots">${d.map(x => `<i class="d-${x}"></i>`).join('')}</div></div>`).join('')}</div>
+        <div class="legend"><span><i class="d-hit"></i>On beat</span><span><i class="d-late"></i>Late</span><span><i class="d-miss"></i>Missed</span></div></div>
+      <div class="stats"><div class="card stat"><span class="num">82%</span><small>changes on the beat</small></div><div class="card stat"><span class="num">9/12</span><small>clean strums</small></div></div>
+      <div class="card tip">${ic('pick', 18)}${t('pr-tip', "You're reaching G a little late. Lift your ring finger first and let the others follow.", 'p')}</div>`,
+
+    tuner: () => `<div class="topbar"><span></span>${t('tu-title', 'Tuner', 'b')}<span></span></div>
+      <div class="chip-row"><span class="chip on">Standard ¬∑ E A D G B E</span><span class="chip">Drop D</span><span class="chip">Capo</span></div>
+      <div class="gauge">${gaugeSVG()}</div>
+      <div class="tnote"><div class="big-note">${['E', 'A', 'D', 'G', 'B', 'E'][ui.string]}</div><small>-6 cents ¬∑ tune up slightly</small></div>
+      <div class="strings">${['E', 'A', 'D', 'G', 'B', 'e'].map((s, i) => `<div role="button" class="string${ui.string === i ? ' on' : ''}" data-string="${i}">${s}</div>`).join('')}</div>
+      <div class="card row between">${t('tu-auto', 'Auto-detect string')}<span class="switch on"><i></i></span></div>`,
+
+    plan: () => `${t('pl-title', 'Your plan', 'h2', 'h1')}
+      <div class="card goal">${ic('trend', 22)}<div>${t('pl-goal', 'Goal: songs from my feed', 'b')}<small>${t('pl-goal-sub', '10 min a day ¬∑ Week 2 of 6')}</small></div></div>
+      <span class="label">${t('pl-label', 'Each chord unlocks more hooks')}</span>
+      <ol class="path">${PLAN.map(n => `<li class="node node--${n.st}"><div class="dot">${n.st === 'done' ? ic('check', 18) : n.st === 'lock' ? ic('lock', 15) : n.c}</div><div class="ninfo"><b>${n.n}</b><small>${n.u}</small></div>${n.st === 'now' ? '<span class="pill">Learning</span>' : ''}</li>`).join('')}</ol>`,
+
+    library: () => { const can = ui.lib === 'can', items = LIB[ui.lib]; return `<div class="row between">${t('lb-title', 'Library', 'h2', 'h1')}${ic('plus', 22)}</div>
+      <div class="seg"><div role="button" class="${can ? 'on' : ''}" data-lib="can">Can play ¬∑ ${LIB.can.length}</div><div role="button" class="${can ? '' : 'on'}" data-lib="want">Want to learn ¬∑ ${LIB.want.length}</div></div>
+      <div class="list">${items.map(([ti, ar, ch, lv], i) => `<div class="item"><div class="thumb cover--${TONES[i % 3]}">${ic(can ? 'check' : 'note', 18)}</div><div class="iinfo"><b>${ti}</b><small>${ar}</small><div class="mini-chips">${ch.map(c => `<span>${c}</span>`).join('')}</div></div><span class="lv${can ? ' ok' : ''}">${lv}</span></div>`).join('')}</div>
+      <div class="card row">${ic('trend', 18)}<small style="flex:1">${t('lb-tip', can ? 'Learn C to move 2 songs from Want into this list.' : 'F is blocking 1 song. Add it to your plan?')}</small></div>`; },
+
+    record: () => `<div class="cam"><div class="cam-top"><span class="pill dark">${ic('back', 14)}Back</span><span class="pill dark">15s ¬∑ 9:16</span></div>
+      <div class="cam-guide"><span>Em</span>${ic('chev', 18)}<span>G</span></div>
+      <div><div class="timer">0:00 / 0:15</div><div class="rec-row"><span class="pill dark">Retake</span><div class="rec-btn" aria-label="Record"><i></i></div><span class="pill dark">Flip</span></div></div></div>
+      <div class="share">${t('rc-share', 'Post your clip', 'b')}<div class="chip-row"><span class="chip on">TikTok</span><span class="chip">Reels</span><span class="chip">Shorts</span><span class="chip">Save</span></div>${t('rc-note', 'Clips carry a small Hookline tag so friends can find the song.', 'small')}</div>`
+  };
+
+  function screenCard(id, idx) {
+    const d = SCREEN_DEFS[id], bleed = id === 'record';
+    return `<article class="shot" data-id="${id}">
+      <header class="shot-head"><button class="grip" aria-label="Drag to reorder ${d.name}">${ic('grip', 14)}</button><h3>${d.name}</h3><span class="num">${String(idx + 1).padStart(2, '0')}</span></header>
+      <div class="phone"><div class="app">${statusBar()}<div class="body${bleed ? ' bleed' : ''}"${id === 'home' ? ' data-home' : ''}>${RENDER[id]()}</div>${d.nav ? tabbar(d.nav) : ''}</div></div>
+      ${t('note-' + id, d.note, 'p', 'shot-note')}
+    </article>`;
+  }
+
+  /* ---------- render all ---------- */
+  function renderAll() {
+    sortables.forEach(s => { try { s.destroy(); } catch (e) {} });
+    sortables = [];
+    const vis = state.screens.filter(s => s.on);
+    stage.innerHTML = vis.map((s, i) => screenCard(s.id, i)).join('');
+    document.querySelectorAll('[data-text]').forEach(el => {
+      if (editing) { el.setAttribute('contenteditable', 'true'); el.setAttribute('spellcheck', 'false'); }
+    });
+    renderLists();
+    if (editing && window.Sortable) initSortables();
+  }
+
+  // Reorder visible items while keeping hidden items in their slots.
+  function reorder(list, newVisibleIds) {
+    let i = 0; const byId = Object.fromEntries(list.map(x => [x.id, x]));
+    return list.map(x => x.on ? byId[newVisibleIds[i++]] : x);
+  }
+  const afterDrag = fn => () => { lastDrag = Date.now(); fn(); save(); setTimeout(renderAll, 0); };
+
+  function initSortables() {
+    const base = { animation: 160, ghostClass: 'ghost', forceFallback: false };
+    sortables.push(Sortable.create(stage, { ...base, handle: '.grip', draggable: '.shot',
+      onEnd: afterDrag(() => { state.screens = reorder(state.screens, [...stage.children].map(e => e.dataset.id)); }) }));
+    const home = stage.querySelector('[data-home]');
+    if (home) sortables.push(Sortable.create(home, { ...base, handle: '.sgrip', draggable: '.sec',
+      onEnd: afterDrag(() => { state.sections = reorder(state.sections, [...home.querySelectorAll(':scope > .sec')].map(e => e.dataset.sec)); }) }));
+    const tiles = stage.querySelector('[data-tiles]');
+    if (tiles) sortables.push(Sortable.create(tiles, { ...base, draggable: '.tile',
+      onEnd: afterDrag(() => { const ids = [...tiles.children].map(e => e.dataset.tile); state.tiles = ids.map(id => state.tiles.find(x => x.id === id)); }) }));
+    stage.querySelectorAll('[data-nav]').forEach(bar => sortables.push(Sortable.create(bar, { ...base, draggable: '.tab',
+      onEnd: afterDrag(() => { state.nav = [...bar.children].map(e => e.dataset.navid); }) })));
+  }
+
+  /* ---------- panel ---------- */
+  function buildPanel() {
+    $('#brand-mark').innerHTML = ic('pick', 20);
+    $('#presets').innerHTML = Object.entries(PRESETS).map(([k, p]) =>
+      `<button class="preset" data-preset="${k}" aria-label="${p.name} theme" title="${p.name}"><span style="background:${p.c.bg}"></span><span class="p-acc"><i style="background:${p.c.accent}"></i><i style="background:${p.c.surface}"></i><i style="background:${p.c.good}"></i></span></button>`).join('');
+    $('#colors').innerHTML = Object.entries(COLOR_LABELS).map(([k, l]) =>
+      `<label class="color" for="c-${k}"><input type="color" id="c-${k}" data-color="${k}"><span>${l}</span></label>`).join('');
+    $('#font-select').innerHTML = Object.entries(FONTS).map(([k, f]) => `<option value="${k}">${f.label}</option>`).join('');
+  }
+  function renderLists() {
+    $('#sec-list').innerHTML = state.sections.map(s => `<label class="check" for="sec-${s.id}"><input type="checkbox" id="sec-${s.id}" data-sec-toggle="${s.id}"${s.on ? ' checked' : ''}>${SECTION_NAMES[s.id]}</label>`).join('');
+    $('#scr-list').innerHTML = state.screens.map(s => `<label class="check" for="scr-${s.id}"><input type="checkbox" id="scr-${s.id}" data-scr-toggle="${s.id}"${s.on ? ' checked' : ''}>${SCREEN_DEFS[s.id].name}</label>`).join('');
+  }
+
+  $('#presets').addEventListener('click', e => {
+    const b = e.target.closest('[data-preset]'); if (!b) return;
+    state.preset = b.dataset.preset; state.colors = { ...PRESETS[state.preset].c }; state.wood = !!PRESETS[state.preset].wood; applyTheme(); save();
+  });
+  $('#wood-toggle').addEventListener('change', e => { state.wood = e.target.checked; applyTheme(); save(); });
+  $('#colors').addEventListener('input', e => {
+    const k = e.target.dataset.color; if (!k) return;
+    state.colors[k] = e.target.value; state.preset = 'custom'; applyTheme(); save();
+  });
+  $('#font-select').addEventListener('change', e => { state.font = e.target.value; applyTheme(); save(); });
+  $('#radius').addEventListener('input', e => { state.radius = +e.target.value; applyTheme(); save(); });
+  $('#zoom').addEventListener('input', e => { state.zoom = +e.target.value; applyTheme(); save(); });
+  $('#sec-list').addEventListener('change', e => { const id = e.target.dataset.secToggle; const s = state.sections.find(x => x.id === id); if (s) { s.on = e.target.checked; save(); renderAll(); } });
+  $('#scr-list').addEventListener('change', e => { const id = e.target.dataset.scrToggle; const s = state.screens.find(x => x.id === id); if (s) { s.on = e.target.checked; save(); renderAll(); } });
+
+  $('#edit-toggle').addEventListener('click', () => {
+    editing = !editing;
+    document.body.classList.toggle('editing', editing);
+    $('#edit-toggle').setAttribute('aria-pressed', editing);
+    $('#edit-sub').textContent = editing ? 'On: drag, rename and restyle' : 'Off: screens are clickable like a prototype';
+    $('#hints').hidden = !editing;
+    if (!editing) closePop();
+    if (editing && !window.Sortable) toast('Dragging needs the Sortable library, which did not load. Text editing still works.');
+    renderAll();
+  });
+
+  function toast(msg) { const el = $('#toast'); el.textContent = msg; el.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => el.hidden = true, 2600); }
+
+  $('#copy-btn').addEventListener('click', () => {
+    const json = JSON.stringify(state, null, 2), out = $('#cfg-out');
+    const fallback = () => { out.hidden = false; out.value = json; out.focus(); out.select(); toast('Select and copy the config below'); };
+    try {
+      navigator.clipboard.writeText(json).then(() => { out.hidden = true; toast('Config copied to clipboard'); }, fallback);
+    } catch (e) { fallback(); }
+  });
+  const resetBtn = $('#reset-btn');
+  resetBtn.addEventListener('click', () => {
+    if (!resetBtn.classList.contains('armed')) {
+      resetBtn.classList.add('armed'); resetBtn.textContent = 'Click to confirm';
+      clearTimeout(resetBtn.t); resetBtn.t = setTimeout(() => { resetBtn.classList.remove('armed'); resetBtn.textContent = 'Reset all'; }, 3000);
+      return;
+    }
+    resetBtn.classList.remove('armed'); resetBtn.textContent = 'Reset all';
+    state = clone(DEFAULT); save(); applyTheme(); renderAll(); toast('Reset to the original layout');
+  });
+
+  /* ---------- stage interactions ---------- */
+  stage.addEventListener('input', e => {
+    const el = e.target.closest('[data-text]'); if (!el) return;
+    state.texts[el.dataset.text] = el.textContent; save();
+  });
+  stage.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && e.target.closest('[data-text]')) { e.preventDefault(); e.target.blur(); }
+  });
+  stage.addEventListener('click', e => {
+    if (editing) {
+      const tile = e.target.closest('[data-tile]');
+      if (tile && Date.now() - lastDrag > 250) openPop(tile);
+      return;
+    }
+    const g = e.target.closest('[data-goal]'), m = e.target.closest('[data-mins]'), l = e.target.closest('[data-level]'),
+          lib = e.target.closest('[data-lib]'), s = e.target.closest('[data-string]');
+    if (g) ui.goal = +g.dataset.goal; else if (m) ui.mins = +m.dataset.mins; else if (l) ui.level = +l.dataset.level;
+    else if (lib) ui.lib = lib.dataset.lib; else if (s) ui.string = +s.dataset.string; else return;
+    renderAll();
+  });
+
+  /* ---------- tile popover ---------- */
+  const pop = $('#pop'); let popTile = null;
+  function openPop(el) {
+    popTile = state.tiles.find(x => x.id === el.dataset.tile); if (!popTile) return;
+    $('#pop-label').value = popTile.label;
+    $('#pop-icons').innerHTML = TILE_ICONS.map(n => `<button data-icon="${n}" class="${popTile.icon === n ? 'on' : ''}" aria-label="${n} icon">${ic(n, 18)}</button>`).join('');
+    $('#pop-styles').innerHTML = [['accent', 'Accent'], ['good', 'Green'], ['plain', 'Plain']].map(([k, l]) => `<button data-style="${k}" class="${popTile.style === k ? 'on' : ''}">${l}</button>`).join('');
+    pop.hidden = false;
+    const r = el.getBoundingClientRect(), w = 252, h = pop.offsetHeight;
+    let left = Math.min(Math.max(8, r.left), innerWidth - w - 8), top = r.bottom + 8;
+    if (top + h > innerHeight - 8) top = Math.max(8, r.top - h - 8);
+    pop.style.left = left + 'px'; pop.style.top = top + 'px';
+    $('#pop-label').focus();
+  }
+  function closePop() { pop.hidden = true; popTile = null; }
+  $('#pop-label').addEventListener('input', e => {
+    if (!popTile) return; popTile.label = e.target.value || ' ';
+    const lbl = stage.querySelector(`[data-tile="${popTile.id}"] .tl`); if (lbl) lbl.textContent = popTile.label; save();
+  });
+  pop.addEventListener('click', e => {
+    const i = e.target.closest('[data-icon]'), s = e.target.closest('[data-style]');
+    if (!popTile) return;
+    if (i) { popTile.icon = i.dataset.icon; pop.querySelectorAll('[data-icon]').forEach(b => b.classList.toggle('on', b === i)); }
+    else if (s) { popTile.style = s.dataset.style; pop.querySelectorAll('[data-style]').forEach(b => b.classList.toggle('on', b === s)); }
+    else if (e.target.id === 'pop-done') { closePop(); return; }
+    else return;
+    save(); renderAll();
+  });
+  document.addEventListener('pointerdown', e => { if (!pop.hidden && !pop.contains(e.target) && !e.target.closest('[data-tile]')) closePop(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closePop(); });
+
+  /* ---------- tuner needle motion ---------- */
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function tick(now) {
+    const c = -6 + Math.sin(now / 650) * 3 + Math.sin(now / 210) * 1.1;
+    document.querySelectorAll('.needle').forEach(n => n.style.transform = `rotate(${c * 1.8}deg)`);
+    requestAnimationFrame(tick);
+  }
+
+  /* ---------- mahogany wood background (procedural) ---------- */
+  function h2(x, y) {
+    let n = (Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263)) | 0;
+    n = Math.imul(n ^ (n >>> 13), 1274126177); n ^= n >>> 16;
+    return (n >>> 0) / 4294967296;
+  }
+  function vn(x, y) {
+    const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
+    const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+    const a = h2(xi, yi), b = h2(xi + 1, yi), c = h2(xi, yi + 1), d = h2(xi + 1, yi + 1);
+    return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+  }
+  let woodSize = [0, 0];
+  function drawWood() {
+    const cv = $('#wood'); if (!cv || !cv.getContext) return;
+    const W0 = innerWidth, H0 = innerHeight;
+    let s = Math.min(window.devicePixelRatio || 1, 1.5);
+    const maxPx = 2.6e6; if (W0 * H0 * s * s > maxPx) s = Math.sqrt(maxPx / (W0 * H0));
+    woodSize = [W0, H0];
+    paintWood(cv, W0, H0, s, 170, 1150, 0);
+    cv.classList.add('ready');
+  }
+  let screenWood = false;
+  function ensureScreenWood() {
+    if (screenWood) return; screenWood = true;
+    setTimeout(() => {
+      try {
+        const c = document.createElement('canvas');
+        paintWood(c, 284, 604, 2, 128, 900, 40);   // sized to the phone screen, 2x for sharpness
+        document.documentElement.style.setProperty('--a-wood', `url("${c.toDataURL('image/jpeg', 0.9)}")`);
+      } catch (e) { screenWood = false; }
+    }, 60);
+  }
+  // PH = plank height, BL = board length (CSS px); seed shifts the plank pattern
+  function paintWood(cv, W0, H0, s, PH, BL, seed) {
+    const W = Math.round(W0 * s), H = Math.round(H0 * s), k = 1 / s;
+    cv.width = W; cv.height = H;
+    const ctx = cv.getContext('2d'), img = ctx.createImageData(W, H), px = img.data;
+    const DARK = [46, 14, 8], MID = [102, 36, 20], LIGHT = [152, 62, 33];
+    let i = 0;
+    for (let y = 0; y < H; y++) {
+      const py = y * k, pr = Math.floor(py / PH), v = py - pr * PH, p = pr + seed;
+      const off = h2(p, 91) * BL, tint = (h2(p, 17) - 0.5) * 0.16;
+      const edgeY = Math.min(v, PH - v);
+      for (let x = 0; x < W; x++) {
+        const X = x * k, bpos = X + off, b = Math.floor(bpos / BL), sd = p * 7.31 + b * 3.17;
+        const bt = tint + (h2(p * 13 + b, 5) - 0.5) * 0.1;
+        const warp = (vn(X * 0.002 + sd * 11, v * 0.011 + sd) - 0.5) * 64 + (vn(X * 0.009 + sd, v * 0.045 + 3) - 0.5) * 12;
+        const g = v + warp + Math.sin(X * 0.0011 + sd) * 16;
+        let band = 0.5 + 0.5 * Math.sin(g * 0.105 + (vn(X * 0.0035 + sd, g * 0.05) - 0.5) * 3);
+        band = band * band;
+        const fiber = vn(X * 0.025 + sd * 5, g * 0.85), fine = vn(X * 0.08 + sd, g * 2.4);
+        const ribbon = (vn(X * 0.0055 + sd * 3, 0.5) - 0.5) * 0.28;   // mahogany ribbon figure
+        let t = 0.5 * band + 0.32 * fiber + 0.18 * fine + ribbon + bt;
+        t = t < 0 ? 0 : t > 1 ? 1 : t;
+        let r, gg, bb;
+        if (t < 0.5) { const f = t * 2; r = DARK[0] + (MID[0] - DARK[0]) * f; gg = DARK[1] + (MID[1] - DARK[1]) * f; bb = DARK[2] + (MID[2] - DARK[2]) * f; }
+        else { const f = (t - 0.5) * 2; r = MID[0] + (LIGHT[0] - MID[0]) * f; gg = MID[1] + (LIGHT[1] - MID[1]) * f; bb = MID[2] + (LIGHT[2] - MID[2]) * f; }
+        // pores: tiny dark streaks along the grain
+        if (fine > 0.86 && h2(Math.floor(X * 0.5), Math.floor(g * 1.5)) > 0.6) { r *= 0.78; gg *= 0.75; bb *= 0.75; }
+        // plank seams, board joints and a faint bevel
+        const jp = bpos - b * BL, edgeX = Math.min(jp, BL - jp);
+        let m = 1;
+        if (edgeY < 1.3 || edgeX < 1.3) m = 0.32;
+        else if (edgeY < 3 || edgeX < 2.5) m = 0.72;
+        else if (v < 6) m = 1.07;
+        px[i++] = r * m; px[i++] = gg * m; px[i++] = bb * m; px[i++] = 255;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+  let woodTimer;
+  addEventListener('resize', () => {
+    clearTimeout(woodTimer);
+    woodTimer = setTimeout(() => {
+      const [w, h] = woodSize;
+      if (Math.abs(innerWidth - w) / w > 0.12 || Math.abs(innerHeight - h) / h > 0.12) drawWood();
+    }, 350);
+  });
+
+  buildPanel(); applyTheme(); renderAll();
+  setTimeout(drawWood, 30);
+  if (!still) requestAnimationFrame(tick);
+})();
+</script>
+
+</html>
